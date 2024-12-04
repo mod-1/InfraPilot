@@ -3,7 +3,8 @@ from rest_framework import routers
 from . import views
 
 router = routers.DefaultRouter()
-# Add your viewsets here
-# router.register(r'items', views.ItemViewSet)
+
+# regester a /compute endpoint
+router.register(r'compute', views.ComputeViewSet, basename='compute')
 
 urlpatterns = router.urls
