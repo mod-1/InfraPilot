@@ -1,0 +1,46 @@
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore virtual environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Ignore Django SQLite database
+db.sqlite3
+db.sqlite3-journal
+
+# Ignore local settings
+local_settings.py
+
+# Ignore logs
+*.log
+
+# Ignore media files
+media/
+
+# Ignore static files (they will be collected during the build)
+static/
+
+# Ignore Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
+
+# Ignore IDE and OS-specific files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Ignore Git files
+.git/
+.gitignore
+
+!terraform/.git
+!/.git/modules/infrastructure_api/terraform
