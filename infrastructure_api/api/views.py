@@ -77,7 +77,6 @@ class ComputeViewSet(viewsets.ViewSet):
     def create(self, request):
         data = request.data
         file_path = os.path.join(settings.STATICFILES_DIRS[0], 'terraform_templates/ec2.tf')
-        instance_name = data.get('instance_name', 'custom-instance')
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         new_file_name = f'ec2_{timestamp}.tf'
@@ -85,15 +84,34 @@ class ComputeViewSet(viewsets.ViewSet):
         terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
         new_file_path = os.path.join(terraform_submodule_path, new_file_name)
 
+        keys = {
+            'ec_instance_name': data.get('ec_instance_name'),
+            'ec2_instance_type': data.get('ec2_instance_type'),
+            'ec2_ami_id': data.get('ec2_ami_id'),
+        }
+
         with open(file_path, 'r') as f:
             file_data = f.read()
-            updated_file_data = re.sub(
-                r'variable "instance_name" \{[^}]*default\s*=\s*".*"',
-                f'variable "instance_name" {{\n  description = "Name of the EC2 instance"\n  default     = "{instance_name}"',
+            file_data = re.sub(
+                r'module "ec2_template" \{',
+                f'module "ec2_template_{timestamp}" {{',
                 file_data
             )
+            for key, value in keys.items():
+                if value:
+                    file_data = re.sub(
+                        rf'{key}\s*=\s*".*"', 
+                        f'{key} = "{value}"', 
+                        file_data
+                    )
+                else:
+                    file_data = re.sub(
+                        rf'\s*{key}\s*=\s*".*"', 
+                        '',
+                        file_data
+                    )
 
         with open(new_file_path, 'w') as tf_file:
-            tf_file.write(updated_file_data)
+            tf_file.write(file_data)
 
         return create_github_pr(new_file_path)
