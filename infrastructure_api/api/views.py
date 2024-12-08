@@ -8,13 +8,13 @@ import datetime
 import subprocess
 import requests
 
-def create_github_pr(new_file_path):
+def create_github_pr(new_file_path,resource_name):
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     original_dir = os.getcwd()
     os.chdir(os.path.dirname(new_file_path))
 
-    branch_name = f'feature/create-ec2-{timestamp}'
+    branch_name = f'feature/create-{resource_name}-{timestamp}'
 
     try:
         subprocess.run(['git', 'config', 'user.name', 'Api user'], check=True)
@@ -41,8 +41,8 @@ def create_github_pr(new_file_path):
         subprocess.run(['git', 'push', 'origin', branch_name], check=True)
 
         headers = {'Authorization': f'token {github_token}'}
-        pr_title = f'Added EC2 configuration'
-        pr_body = 'This PR was automatically created by the API to update the EC2 instance configuration.'
+        pr_title = f'Added configuration'
+        pr_body = 'This PR was automatically created by the API to update the instance configuration.'
         pr_data = {
             'title': pr_title,
             'head': branch_name,
@@ -114,4 +114,51 @@ class ComputeViewSet(viewsets.ViewSet):
         with open(new_file_path, 'w') as tf_file:
             tf_file.write(file_data)
 
-        return create_github_pr(new_file_path)
+        return create_github_pr(new_file_path,'ec2')
+
+class StoreViewSet(viewsets.ViewSet):
+    def list(self, request):
+        return Response({"message": "Success"})
+
+    def create(self, request):
+        data = request.data
+        file_path = os.path.join(settings.STATICFILES_DIRS[0], 'terraform_templates/rds.tf')
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        new_file_name = f'rds_{timestamp}.tf'
+
+        terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
+        new_file_path = os.path.join(terraform_submodule_path, new_file_name)
+
+        keys = {
+            'db_name': data.get('db_name'),
+            'db_engine': data.get('db_engine'),
+            'instance_class': data.get('instance_class'),
+            'db_storage':data.get('db_storage'),
+        }
+
+        with open(file_path, 'r') as f:
+            file_data = f.read()
+            file_data = re.sub(
+                r'module "rds_template" \{',
+                f'module "rds_template_{timestamp}" {{',
+                file_data
+            )
+            for key, value in keys.items():
+                if value:
+                    file_data = re.sub(
+                        rf'{key}\s*=\s*".*"', 
+                        f'{key} = "{value}"', 
+                        file_data
+                    )
+                else:
+                    file_data = re.sub(
+                        rf'\s*{key}\s*=\s*".*"', 
+                        '',
+                        file_data
+                    )
+
+        with open(new_file_path, 'w') as tf_file:
+            tf_file.write(file_data)
+
+        return create_github_pr(new_file_path,'rds')
