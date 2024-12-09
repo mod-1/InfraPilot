@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from django.conf import settings
 import os
 import re
@@ -122,7 +123,7 @@ def create_github_pr_delete(new_file_path,resource_name,file_name):
             pr_info = response.json()
             pr_url = pr_info.get('html_url')
             delete_resource_by_file_name(file_name)
-            return Response({"message": "Pull request created successfully", "pull_request_url": pr_url}, status=status.HTTP_201_CREATED)
+            return Response({"message": "Pull request created successfully", "pull_request_url": pr_url}, status=status.HTTP_204_NO_CONTENT)
         else:
             return Response({"error": "Failed to create pull request", "details": response.json()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -139,7 +140,8 @@ def create_github_pr_delete(new_file_path,resource_name,file_name):
 
 class ComputeViewSet(viewsets.ViewSet):
     def list(self, request):
-        return Response({"message": "Success"})
+        names=get_resource_names_by_type('ec2')
+        return Response({"message": "Success", "data": { "resource_names": names}}, status=status.HTTP_200_OK)
 
     def create(self, request):
         data = request.data
@@ -183,6 +185,21 @@ class ComputeViewSet(viewsets.ViewSet):
             tf_file.write(file_data)
 
         return create_github_pr(new_file_path,'ec2',resource_name,new_file_name)
+    
+    @action(detail=False, methods=['delete'], url_path='delete-resource')
+    def delete_resource(self, request):
+        print("arrived in destroy method2")
+        data = request.data
+        resource_name = data.get('resource_name')
+        if not resource_name:
+            return Response({"error": "resource_name is required"}, status=400)
+
+        # Logic to delete the resource
+        new_file_name = get_file_name(resource_name)
+        terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
+        new_file_path = os.path.join(terraform_submodule_path, new_file_name)
+
+        return create_github_pr_delete(new_file_path, 'ec2', new_file_name)
 
 class StoreViewSet(viewsets.ViewSet):
     def list(self, request):
@@ -233,19 +250,6 @@ class StoreViewSet(viewsets.ViewSet):
 
         return create_github_pr(new_file_path,'rds',resource_name,new_file_name)
     
-class manageResourceViewSet(viewsets.ViewSet):
-    def list(self, request):
-        return Response({"message": "Success"})
-    
-    def create(self, request):
-        data = request.data
-        resource_name = data.get('resource_name')
-        new_file_name = get_file_name(resource_name)
-        terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
-        new_file_path = os.path.join(terraform_submodule_path, new_file_name)
-
-        return create_github_pr_delete(new_file_path,'ec2',new_file_name)
-    
 def insert_resource(timestamp, resource_type, resource_name, file_name):
     with transaction.atomic():  # Ensure transaction is handled atomically
         with connection.cursor() as cursor:
@@ -286,5 +290,26 @@ def delete_resource_by_file_name(file_name):
             WHERE file_name = %s;
         '''
         cursor.execute(query, [file_name])
+
+def get_resource_names_by_type(resource_type):
+    """
+    Retrieves resource names based on the given resource type.
+
+    :param resource_type: The type of resource to filter by (e.g., 'ec2').
+    :return: A list of resource names matching the given resource type.
+    """
+    with connection.cursor() as cursor:
+        query = '''
+        SELECT resource_name 
+        FROM resources 
+        WHERE resource_type = %s;
+        '''
+        
+        cursor.execute(query, [resource_type])  # Execute query with the parameter
+        rows = cursor.fetchall()  # Fetch all matching rows
+        
+    # Extract the resource names from the rows
+    resource_names = [row[0] for row in rows]
+    return resource_names
 
 
