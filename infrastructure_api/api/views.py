@@ -153,13 +153,13 @@ class ComputeViewSet(viewsets.ViewSet):
         terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
         new_file_path = os.path.join(terraform_submodule_path, new_file_name)
 
+        resource_name = data.get('ec_instance_name', f'ec2_{timestamp}')
         keys = {
-            'ec_instance_name': data.get('ec_instance_name'),
+            'ec_instance_name': resource_name,
             'ec2_instance_type': data.get('ec2_instance_type'),
             'ec2_ami_id': data.get('ec2_ami_id'),
         }
 
-        resource_name = data.get('ec_instance_name', f'ec2_{timestamp}')
         with open(file_path, 'r') as f:
             file_data = f.read()
             file_data = re.sub(
