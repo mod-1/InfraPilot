@@ -10,6 +10,7 @@ import subprocess
 import requests
 import sqlite3
 from django.db import connection, transaction
+import random
 
 def create_github_pr(new_file_path,resource,resource_name,file_name, username):
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -314,4 +315,121 @@ def get_resource_names_by_type(resource_type,username):
     resource_names = [row[0] for row in rows]
     return resource_names
 
+class ClusterViewSet(viewsets.ViewSet):
+
+    def list(self, request):
+        return Response({"message": "Success"})
+
+    def create(self, request):
+        required_fields = [
+            'github_url', 'number_of_instances', 'user_id', 
+            'docker_image_name', 'container_port', 'cluster_name', 
+            'healthcheck_endpoint'
+        ]
+        data = request.data
+
+        # Check for missing fields
+        missing_fields = [field for field in required_fields if not data.get(field)]
+
+        if missing_fields:
+            return Response({
+                "error": "Missing required fields",
+                "missing_fields": missing_fields
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        cpu = data.get('cpu', 256)
+        memory = data.get('memory', 512)
+
+        # Validate CPU and Memory
+        validation_result = validate_cpu_memory(cpu, memory)
+
+        if not validation_result['valid']:
+            return Response({
+                "error": validation_result['error'],
+                "valid_configs": validation_result['valid_configs']
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Terraform file generation logic
+        file_path = os.path.join(settings.STATICFILES_DIRS[0], 'terraform_templates/ecs.tf')
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        new_file_name = f'ecs_{timestamp}.tf'
+        terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
+        new_file_path = os.path.join(terraform_submodule_path, new_file_name)
+
+        # Prepare replacement keys
+        priority = str(random.randint(1, 50000))
+        keys = {
+            'user_id': data.get('user_id'),
+            'github_url': data.get('github_url'),
+            'cpu': str(data.get('cpu', "256")),
+            'memory': str(data.get('memory', "512")),
+            'healthcheck': data.get('healthcheck_endpoint'),
+            'docker_image_name': data.get('docker_image_name'),
+            'cluster_name': data.get('cluster_name'),
+            'container_port': str(data.get('container_port')),
+            'desired_count': str(data.get('number_of_instances')),
+            'unique_id': timestamp,
+            'priority': priority
+        }
+
+        try:
+            with open(file_path, 'r') as f:
+                file_data = f.read()
+
+                # Replace placeholders
+                for key, value in keys.items():
+                    placeholder = f'{{{key}}}'
+                    file_data = re.sub(re.escape(placeholder), value, file_data)
+
+                # Write processed file
+                with open(new_file_path, 'w') as tf_file:
+                    tf_file.write(file_data)
+
+                print(f"Generated file: {new_file_path}")
+                resource_name = keys['user_id']+"_cluster_"+keys['unique_id']
+                
+                # Example GitHub PR creation
+                return create_github_pr(new_file_path, "ecs", resource_name,new_file_name)
+
+        except FileNotFoundError:
+            return Response(
+                {"error": "Template file not found. Please check the path."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"An unexpected error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# Validation Function
+VALID_CONFIGS = {
+    "256": [512, 1024, 2048],
+    "512": [1024, 2048, 3072, 4096],
+    "1024": [2048, 3072, 4096, 5120, 6144, 7168, 8192],
+    "2048": list(range(4096, 16385, 1024)),
+    "4096": list(range(8192, 30721, 1024))
+}
+
+def validate_cpu_memory(cpu, memory):
+    cpu_str = str(cpu)
+
+    if cpu_str not in VALID_CONFIGS:
+        return {
+            "valid": False,
+            "error": f"Invalid CPU value {cpu}.",
+            "valid_configs": VALID_CONFIGS
+        }
+
+    if int(memory) not in VALID_CONFIGS[cpu_str]:
+        return {
+            "valid": False,
+            "error": f"Invalid memory size {memory} MiB for CPU {cpu}.",
+            "valid_configs": VALID_CONFIGS[cpu_str]
+        }
+
+    return {"valid": True}
 
