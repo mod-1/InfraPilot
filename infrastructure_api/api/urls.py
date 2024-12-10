@@ -6,5 +6,6 @@ router = routers.DefaultRouter()
 # regester a /compute endpoint
 router.register(r'compute', views.ComputeViewSet, basename='compute')
 router.register(r'store', views.StoreViewSet, basename='store')
+router.register(r'cluster', views.ClusterViewSet, basename='cluster')
 
 urlpatterns = router.urls
