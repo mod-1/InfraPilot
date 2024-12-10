@@ -11,7 +11,7 @@ import requests
 import sqlite3
 from django.db import connection, transaction
 
-def create_github_pr(new_file_path,resource,resource_name,file_name):
+def create_github_pr(new_file_path,resource,resource_name,file_name, username):
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     original_dir = os.getcwd()
     os.chdir(os.path.dirname(new_file_path))
@@ -57,7 +57,7 @@ def create_github_pr(new_file_path,resource,resource_name,file_name):
         if response.status_code == 201:
             pr_info = response.json()
             pr_url = pr_info.get('html_url')
-            insert_resource(timestamp, resource, resource_name, file_name)
+            insert_resource(timestamp, resource, resource_name, file_name, username)
             return Response({"message": "Pull request created successfully", "pull_request_url": pr_url}, status=status.HTTP_201_CREATED)
         else:
             return Response({"error": "Failed to create pull request", "details": response.json()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -140,11 +140,13 @@ def create_github_pr_delete(new_file_path,resource_name,file_name):
 
 class ComputeViewSet(viewsets.ViewSet):
     def list(self, request):
-        names=get_resource_names_by_type('ec2')
+        username= request.data.get('username','test_user')
+        names=get_resource_names_by_type('ec2',username)
         return Response({"message": "Success", "data": { "resource_names": names}}, status=status.HTTP_200_OK)
 
     def create(self, request):
         data = request.data
+        username= data.get('username','test_user')
         file_path = os.path.join(settings.STATICFILES_DIRS[0], 'terraform_templates/ec2.tf')
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -184,11 +186,10 @@ class ComputeViewSet(viewsets.ViewSet):
         with open(new_file_path, 'w') as tf_file:
             tf_file.write(file_data)
 
-        return create_github_pr(new_file_path,'ec2',resource_name,new_file_name)
+        return create_github_pr(new_file_path,'ec2',resource_name,new_file_name,username)
     
     @action(detail=False, methods=['delete'], url_path='delete-resource')
     def delete_resource(self, request):
-        print("arrived in destroy method2")
         data = request.data
         resource_name = data.get('resource_name')
         if not resource_name:
@@ -207,6 +208,7 @@ class StoreViewSet(viewsets.ViewSet):
 
     def create(self, request):
         data = request.data
+        username= data.get('username','test_user')
         file_path = os.path.join(settings.STATICFILES_DIRS[0], 'terraform_templates/rds.tf')
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -248,18 +250,18 @@ class StoreViewSet(viewsets.ViewSet):
         with open(new_file_path, 'w') as tf_file:
             tf_file.write(file_data)
 
-        return create_github_pr(new_file_path,'rds',resource_name,new_file_name)
+        return create_github_pr(new_file_path,'rds',resource_name,new_file_name,username)
     
-def insert_resource(timestamp, resource_type, resource_name, file_name):
+def insert_resource(timestamp, resource_type, resource_name, file_name, username):
     with transaction.atomic():  # Ensure transaction is handled atomically
         with connection.cursor() as cursor:
             insert_query = '''
-            INSERT INTO resources (timestamp, resource_type, resource_name, file_name)
-            VALUES (%s, %s, %s, %s);
+            INSERT INTO resources (timestamp, resource_type, resource_name, file_name, username)
+            VALUES (%s, %s, %s, %s, %s);
             '''
             
             # Ensure params are passed as a list or tuple
-            params = [timestamp, resource_type, resource_name, file_name]
+            params = [timestamp, resource_type, resource_name, file_name, username]
 
             # Execute the query with parameters
             cursor.execute(insert_query, params)
@@ -291,7 +293,7 @@ def delete_resource_by_file_name(file_name):
         '''
         cursor.execute(query, [file_name])
 
-def get_resource_names_by_type(resource_type):
+def get_resource_names_by_type(resource_type,username):
     """
     Retrieves resource names based on the given resource type.
 
@@ -302,10 +304,10 @@ def get_resource_names_by_type(resource_type):
         query = '''
         SELECT resource_name 
         FROM resources 
-        WHERE resource_type = %s;
+        WHERE resource_type = %s AND username=%s;
         '''
         
-        cursor.execute(query, [resource_type])  # Execute query with the parameter
+        cursor.execute(query, [resource_type,username])  # Execute query with the parameter
         rows = cursor.fetchall()  # Fetch all matching rows
         
     # Extract the resource names from the rows
