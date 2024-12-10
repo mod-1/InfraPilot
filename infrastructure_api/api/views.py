@@ -252,6 +252,19 @@ class StoreViewSet(viewsets.ViewSet):
             tf_file.write(file_data)
 
         return create_github_pr(new_file_path,'rds',resource_name,new_file_name,username)
+    @action(detail=False, methods=['delete'], url_path='delete-resource')
+    def delete_resource(self, request):
+        data = request.data
+        resource_name = data.get('resource_name')
+        if not resource_name:
+            return Response({"error": "resource_name is required"}, status=400)
+
+        # Logic to delete the resource
+        new_file_name = get_file_name(resource_name)
+        terraform_submodule_path = os.path.join(settings.BASE_DIR,'terraform')
+        new_file_path = os.path.join(terraform_submodule_path, new_file_name)
+
+        return create_github_pr_delete(new_file_path, 'rds', new_file_name)
     
 def insert_resource(timestamp, resource_type, resource_name, file_name, username):
     with transaction.atomic():  # Ensure transaction is handled atomically
