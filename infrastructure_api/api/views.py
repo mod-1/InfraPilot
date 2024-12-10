@@ -162,3 +162,60 @@ class StoreViewSet(viewsets.ViewSet):
             tf_file.write(file_data)
 
         return create_github_pr(new_file_path,'rds')
+    
+
+class EcsViewSet(viewsets.ViewSet):
+    def list(self, request):
+        return Response({"message": "Success"})
+
+    def create(self, request):
+        data = request.data
+        file_path = os.path.join(settings.STATICFILES_DIRS[0], 'terraform_templates/ecs.tf')
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        new_file_name = f'rds_{timestamp}.tf'
+        print("REACHED HERE1")
+        terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
+        new_file_path = os.path.join(terraform_submodule_path, new_file_name)
+        print("REACHED HERE2")
+
+        keys = {
+            'cluster_name': data.get('cluster_name'),
+            'service_name': data.get('service_name'),
+            'target_group_name': data.get('cluster_name'),
+            'user_name':data.get('service_name'),
+            'aws_lb_listener_rule_name':data.get('service_name')
+        }
+        print("REACHED HERE3")
+
+        try:
+            with open(file_path, 'r') as f:
+                file_data = f.read()
+
+                # Replace placeholders with actual values from keys
+                for key, value in keys.items():
+                    placeholder = f'{{{key}}}'
+                    file_data = re.sub(re.escape(placeholder), value if value else '', file_data)
+
+                # Write processed file
+                with open(new_file_path, 'w') as tf_file:
+                    tf_file.write(file_data)
+
+                print(f"Generated file: {new_file_path}")
+                return new_file_path
+
+        except FileNotFoundError:
+            print("Template file not found. Please check the path.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        with open(new_file_path, 'w') as tf_file:
+            tf_file.write(file_data)
+
+        return Response(
+                {"message": "Terraform file created successfully", "file_path": new_file_path},
+                status=status.HTTP_201_CREATED
+            )
+
+
+        # return create_github_pr(new_file_path,'rds')
