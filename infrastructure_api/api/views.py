@@ -12,7 +12,7 @@ import sqlite3
 from django.db import connection, transaction
 import random
 
-def create_github_pr(new_file_path,resource,resource_name,file_name, username):
+def create_github_pr(new_file_path,resource,resource_name,file_name, username, output_key = None):
     timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     original_dir = os.getcwd()
     os.chdir(os.path.dirname(new_file_path))
@@ -59,7 +59,7 @@ def create_github_pr(new_file_path,resource,resource_name,file_name, username):
             pr_info = response.json()
             pr_url = pr_info.get('html_url')
             insert_resource(timestamp, resource, resource_name, file_name, username)
-            return Response({"message": "Pull request created successfully", "pull_request_url": pr_url}, status=status.HTTP_201_CREATED)
+            return Response({"message": "Resource creation started", "pr_url": pr_url, "key_id": output_key}, status=status.HTTP_201_CREATED)
         else:
             return Response({"error": "Failed to create pull request", "details": response.json()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -166,8 +166,8 @@ class ComputeViewSet(viewsets.ViewSet):
         with open(file_path, 'r') as f:
             file_data = f.read()
             file_data = re.sub(
-                r'module "ec2_template" \{',
-                f'module "ec2_template_{timestamp}" {{',
+                r'\{unique_id\}',
+                f'{timestamp}',
                 file_data
             )
             for key, value in keys.items():
@@ -187,7 +187,7 @@ class ComputeViewSet(viewsets.ViewSet):
         with open(new_file_path, 'w') as tf_file:
             tf_file.write(file_data)
 
-        return create_github_pr(new_file_path,'ec2',resource_name,new_file_name,username)
+        return create_github_pr(new_file_path,'ec2',resource_name,new_file_name,username, f'ec2_template_output_{timestamp}')
     
     @action(detail=False, methods=['delete'], url_path='delete-resource')
     def delete_resource(self, request):
