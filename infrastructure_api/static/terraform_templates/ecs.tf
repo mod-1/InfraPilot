@@ -165,3 +165,8 @@ module "{user_id}_ecs_{unique_id}" {
   ]
 
 }
+
+output "ecs_template_output_{unique_id}" {
+  value = aws_lb.ecs_alb.dns_name
+  description = "The DNS name of the ALB"
+}

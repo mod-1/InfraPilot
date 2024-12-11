@@ -333,7 +333,9 @@ def get_resource_names_by_type(resource_type,username):
 class ClusterViewSet(viewsets.ViewSet):
 
     def list(self, request):
-        return Response({"message": "Success"})
+        username= request.data.get('username','test_user')
+        names=get_resource_names_by_type('ecs',username)
+        return Response({"message": "Success", "data": { "resource_names": names}}, status=status.HTTP_200_OK)
 
     def create(self, request):
         required_fields = [
@@ -402,10 +404,9 @@ class ClusterViewSet(viewsets.ViewSet):
                     tf_file.write(file_data)
 
                 print(f"Generated file: {new_file_path}")
-                resource_name = keys['user_id']+"_cluster_"+keys['unique_id']
+                resource_name = keys['user_id']+keys['cluster_name']+keys['unique_id']
                 
-                # Example GitHub PR creation
-                return create_github_pr(new_file_path, "ecs", resource_name,new_file_name)
+                return create_github_pr(new_file_path, "ecs", resource_name,new_file_name, keys['user_id'], f'ecs_template_output_{keys['unique_id']}')
 
         except FileNotFoundError:
             return Response(
@@ -418,6 +419,20 @@ class ClusterViewSet(viewsets.ViewSet):
                 {"error": f"An unexpected error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
+    @action(detail=False, methods=['delete'], url_path='delete-resource')
+    def delete_resource(self, request):
+        data = request.data
+        resource_name = data.get('resource_name')
+        if not resource_name:
+            return Response({"error": "resource_name is required"}, status=400)
+
+        # Logic to delete the resource
+        new_file_name = get_file_name(resource_name)
+        terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
+        new_file_path = os.path.join(terraform_submodule_path, new_file_name)
+
+        return create_github_pr_delete(new_file_path, 'ecs', new_file_name)
 
 
 # Validation Function
