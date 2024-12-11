@@ -205,7 +205,9 @@ class ComputeViewSet(viewsets.ViewSet):
 
 class StoreViewSet(viewsets.ViewSet):
     def list(self, request):
-        return Response({"message": "Success"})
+        username= request.data.get('username','test_user')
+        names=get_resource_names_by_type('rds',username)
+        return Response({"message": "Success", "data": { "resource_names": names}}, status=status.HTTP_200_OK)
 
     def create(self, request):
         data = request.data
