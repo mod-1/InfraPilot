@@ -232,8 +232,8 @@ class StoreViewSet(viewsets.ViewSet):
         with open(file_path, 'r') as f:
             file_data = f.read()
             file_data = re.sub(
-                r'module "rds_template" \{',
-                f'module "rds_template_{timestamp}" {{',
+                r'\{unique_id\}',
+                f'{timestamp}',
                 file_data
             )
             for key, value in keys.items():
@@ -253,7 +253,7 @@ class StoreViewSet(viewsets.ViewSet):
         with open(new_file_path, 'w') as tf_file:
             tf_file.write(file_data)
 
-        return create_github_pr(new_file_path,'rds',resource_name,new_file_name,username)
+        return create_github_pr(new_file_path,'rds',resource_name,new_file_name,username,f'rds_template_output_{timestamp}')
     @action(detail=False, methods=['delete'], url_path='delete-resource')
     def delete_resource(self, request):
         data = request.data
