@@ -406,7 +406,7 @@ class ClusterViewSet(viewsets.ViewSet):
                 print(f"Generated file: {new_file_path}")
                 resource_name = keys['user_id']+keys['cluster_name']+keys['unique_id']
                 
-                return create_github_pr(new_file_path, "ecs", resource_name,new_file_name, keys['user_id'], f'ecs_template_output_{keys['unique_id']}')
+                return create_github_pr(new_file_path, "ecs", resource_name,new_file_name, keys['user_id'],  f"ecs_template_output_{keys['unique_id']}")
 
         except FileNotFoundError:
             return Response(
