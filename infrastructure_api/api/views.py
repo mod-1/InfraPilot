@@ -389,6 +389,8 @@ class ClusterViewSet(viewsets.ViewSet):
             'unique_id': timestamp,
             'priority': priority
         }
+        raw_user_id = data.get('user_id', '')
+        keys['user_id'] = raw_user_id.split('@')[0]
 
         try:
             with open(file_path, 'r') as f:
@@ -406,7 +408,7 @@ class ClusterViewSet(viewsets.ViewSet):
                 print(f"Generated file: {new_file_path}")
                 resource_name = keys['user_id']+keys['cluster_name']+keys['unique_id']
                 
-                return create_github_pr(new_file_path, "ecs", resource_name,new_file_name, keys['user_id'],  f"ecs_template_output_{keys['unique_id']}")
+                return create_github_pr(new_file_path, "ecs", resource_name,new_file_name, raw_user_id,  f"ecs_template_output_{keys['unique_id']}")
 
         except FileNotFoundError:
             return Response(
