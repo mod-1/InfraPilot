@@ -7,5 +7,5 @@ router = routers.DefaultRouter()
 router.register(r'compute', views.ComputeViewSet, basename='compute')
 router.register(r'store', views.StoreViewSet, basename='store')
 router.register(r'cluster', views.ClusterViewSet, basename='cluster')
-
+router.register(r'custom', views.CustomViewSet, basename='custom')
 urlpatterns = router.urls
