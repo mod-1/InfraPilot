@@ -415,3 +415,28 @@ def validate_cpu_memory(cpu, memory):
 
     return {"valid": True}
 
+class CustomViewSet(viewsets.ViewSet):
+    def list(self, request):
+        return Response({"message": "Success"}, status=status.HTTP_200_OK)
+
+    def create(self, request):
+        print(request)
+        data = request.data
+        print('DATA')
+        print(data)
+        username= data.get('username','test_user')
+        file_data = data.get('file_data')
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        new_file_name = f'custom_{timestamp}.tf'
+
+        terraform_submodule_path = os.path.join(settings.BASE_DIR, 'terraform')
+        new_file_path = os.path.join(terraform_submodule_path, new_file_name)
+
+        resource_name = data.get('resource_name', f'custom_{timestamp}')
+
+        with open(new_file_path, 'w') as tf_file:
+            tf_file.write(file_data)
+
+        return create_github_pr(new_file_path,'custom',resource_name,new_file_name,username,f'custom_template_output_{timestamp}')
+
