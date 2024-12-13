@@ -7,7 +7,6 @@ import os
 import re
 import datetime
 import subprocess
-import requests
 import sqlite3
 from django.db import connection, transaction
 import random
@@ -17,8 +16,6 @@ def create_github_pr(new_file_path,resource,resource_name,file_name, username, o
     original_dir = os.getcwd()
     os.chdir(os.path.dirname(new_file_path))
 
-    branch_name = f'feature/create-{resource}-{timestamp}'
-
     try:
         subprocess.run(['git', 'config', 'user.name', 'Api user'], check=True)
         subprocess.run(['git', 'config', 'user.email', 'infrapilot.dev@gmail.com'], check=True)
@@ -36,49 +33,24 @@ def create_github_pr(new_file_path,resource,resource_name,file_name, username, o
         subprocess.run(['git', 'checkout', 'main'], check=True)
         subprocess.run(['git', 'pull', 'origin', 'main'], check=True)
 
-        subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
-
         subprocess.run(['git', 'add', os.path.basename(new_file_path)], check=True)
         subprocess.run(['git', 'commit', '-m', 'Add updated Terraform configuration'], check=True)
 
-        subprocess.run(['git', 'push', 'origin', branch_name], check=True)
-
-        headers = {'Authorization': f'token {github_token}'}
-        pr_title = f'Added configuration'
-        pr_body = 'This PR was automatically created by the API to update the instance configuration.'
-        pr_data = {
-            'title': pr_title,
-            'head': branch_name,
-            'base': 'main',
-            'body': pr_body
-        }
-        pr_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/pulls'
-        response = requests.post(pr_url, json=pr_data, headers=headers)
-
-        if response.status_code == 201:
-            pr_info = response.json()
-            pr_url = pr_info.get('html_url')
-            insert_resource(timestamp, resource, resource_name, file_name, username)
-            return Response({"message": "Resource creation started", "pr_url": pr_url, "key_id": output_key}, status=status.HTTP_201_CREATED)
-        else:
-            return Response({"error": "Failed to create pull request", "details": response.json()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        subprocess.run(['git', 'push', 'origin', 'main'], check=True)
+        insert_resource(timestamp, resource, resource_name, file_name, username)
+        return Response({"message": "Resource creation started", "key_id": output_key}, status=status.HTTP_201_CREATED)
 
     except subprocess.CalledProcessError as e:
         if os.path.exists(new_file_path):
             os.remove(new_file_path)
-        subprocess.run(['git', 'checkout', 'main'], check=True)
-        subprocess.run(['git', 'branch', '-D', branch_name], check=True)
         return Response({"error": f"Git command failed: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
         subprocess.run(['git', 'checkout', 'main'], check=True)
         os.chdir(original_dir)
 
 def create_github_pr_delete(new_file_path,resource_name,file_name):
-    timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     original_dir = os.getcwd()
     os.chdir(os.path.dirname(new_file_path))
-
-    branch_name = f'feature/delete-{resource_name}-{timestamp}'
 
     try:
         subprocess.run(['git', 'config', 'user.name', 'Api user'], check=True)
@@ -96,8 +68,6 @@ def create_github_pr_delete(new_file_path,resource_name,file_name):
 
         subprocess.run(['git', 'checkout', 'main'], check=True)
         subprocess.run(['git', 'pull', 'origin', 'main'], check=True)
-
-        subprocess.run(['git', 'checkout', '-b', branch_name], check=True)
 
         if os.path.exists(new_file_path):
             os.remove(new_file_path)
@@ -106,33 +76,13 @@ def create_github_pr_delete(new_file_path,resource_name,file_name):
         else:
             return Response({"error": f"File '{new_file_path}' does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
-        subprocess.run(['git', 'push', 'origin', branch_name], check=True)
-
-        headers = {'Authorization': f'token {github_token}'}
-        pr_title = f'Delete configuration'
-        pr_body = 'This PR was automatically created by the API to update the instance configuration.'
-        pr_data = {
-            'title': pr_title,
-            'head': branch_name,
-            'base': 'main',
-            'body': pr_body
-        }
-        pr_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/pulls'
-        response = requests.post(pr_url, json=pr_data, headers=headers)
-
-        if response.status_code == 201:
-            pr_info = response.json()
-            pr_url = pr_info.get('html_url')
-            delete_resource_by_file_name(file_name)
-            return Response({"message": "Pull request created successfully", "pull_request_url": pr_url}, status=status.HTTP_204_NO_CONTENT)
-        else:
-            return Response({"error": "Failed to create pull request", "details": response.json()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        subprocess.run(['git', 'push', 'origin', 'main'], check=True)
+        delete_resource_by_file_name(file_name)
+        return Response({"message": "Pull request created successfully"}, status=status.HTTP_204_NO_CONTENT)
+    
     except subprocess.CalledProcessError as e:
         if os.path.exists(new_file_path):
             os.remove(new_file_path)
-        subprocess.run(['git', 'checkout', 'main'], check=True)
-        subprocess.run(['git', 'branch', '-D', branch_name], check=True)
         return Response({"error": f"Git command failed: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
         subprocess.run(['git', 'checkout', 'main'], check=True)
